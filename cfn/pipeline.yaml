@@ -1,0 +1,339 @@
+
+Parameters:
+  GitBranch:
+    Type: String
+    Description: GitHub repository branch
+  GitOwner:
+    Type: String
+    Description: GitHub repository owner
+  GitRepo:
+    Type: String
+    Description: GitHub repository name
+  VpcId:
+    Type: String
+    Description: The Id of the VPC to put the load balancer security group in
+  DomainName:
+    Type: String
+    Description: The base domain name that will be used for the account server.  The final name will be account.domainname.com.
+  CodestarConnectionArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /app/AccountManager/CodestarConnectionArn
+    Description: codestar connection to github
+
+Resources:
+
+  # AccountManagerBucket:
+  #   Type: AWS::S3::Bucket
+  #   Properties:
+  #     BucketName: accountmanager-application-bucket
+
+  AccountManagerLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+#        S3Bucket: !Ref AccountManagerBucket
+        S3Bucket: !Sub 'accountmanager-${GitBranch}-pipeline-artifacts-bucket'
+        S3Key: AccountManager.zip
+      FunctionName: AccountManager
+      Handler: AccountManager
+      Runtime: dotnet6
+      Timeout: 60
+      MemorySize: 256
+      Role: !GetAtt AccountManagerLambdaExecutionRole.Arn
+
+  # AccountManagerLambdaURL:
+  #   Type: AWS::Lambda::Url
+  #   Properties: 
+  #     AuthType: NONE
+  #     TargetFunctionArn: !GetAtt AccountManagerLambda.Arn
+
+  AccountManagerLambdaPermissionForURLInvoke:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref AccountManagerLambda
+#      FunctionUrlAuthType: 'NONE'
+#      Action: lambda:InvokeFunctionUrl
+      Action: lambda:InvokeFunction
+      Principal: elasticloadbalancing.amazonaws.com
+
+  AccountManagerLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      RoleName: !Sub 'AccountManager-${GitBranch}-LambdaExecutionRole'
+      Policies:
+        - PolicyName: MyLambdaExecutionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:log-group:/aws/lambda/AccountManager:*
+              - Effect: Allow
+                Action:
+                  - ssm:Get*
+                  - ssm:Put*
+                Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/app/AccountManager*'
+
+  AccountManagerLambdaTargetGroup:
+    DependsOn:
+      - AccountManagerLambdaPermissionForURLInvoke
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: AccountManagerLambdaTargetGroup
+      TargetType: lambda
+      TargetGroupAttributes:
+        - Key: lambda.multi_value_headers.enabled
+          Value: true
+      Targets:
+        - Id: !GetAtt AccountManagerLambda.Arn
+
+  AccountManagerLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: AccountManagerLoadBalancer
+      Scheme: internet-facing
+      Subnets:
+        - subnet-ea7bea8e # in us-west-2 az1
+        - subnet-174fe761 # in us-west-2 az2
+      Type: application
+      SecurityGroups:
+        - !Ref AccountManagerLoadBalancerSecurityGroup
+
+  AccountManagerLoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: AccountManagerLoadBalancerSecurityGroup
+      GroupDescription: Allow HTTP and HTTPS traffic
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0        
+
+
+  AccountManagerCertificate:
+    Type: AWS::CertificateManager::Certificate
+    DependsOn: RecordSet
+    Properties:
+      DomainName: !Sub 'account.${DomainName}'
+      DomainValidationOptions:
+        - DomainName: !Sub 'account.${DomainName}'
+          HostedZoneId: !Ref HostedZone
+      ValidationMethod: DNS
+      SubjectAlternativeNames:
+        - !Sub "*.account.${DomainName}"
+
+  HttpsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref AccountManagerLoadBalancer
+      Protocol: HTTPS
+      Port: 443
+      DefaultActions:
+        - Type: "forward"
+          TargetGroupArn: !Ref AccountManagerLambdaTargetGroup
+      Certificates:
+        - CertificateArn: !Ref AccountManagerCertificate
+
+  HttpListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref AccountManagerLoadBalancer
+      Protocol: HTTP
+      Port: 80
+      DefaultActions:
+        - Type: redirect
+          RedirectConfig:
+            Protocol: HTTPS
+            Port: '443'
+            StatusCode: HTTP_301
+
+  HostedZone:
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: !Sub 'account.${DomainName}.'
+
+  RecordSet:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZone
+      Name: !Sub 'account.${DomainName}.'
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt AccountManagerLoadBalancer.DNSName
+        HostedZoneId: !GetAtt AccountManagerLoadBalancer.CanonicalHostedZoneID
+
+  CodePipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      ArtifactStore:
+        Location: !Sub 'accountmanager-${GitBranch}-pipeline-artifacts-bucket'
+        Type: S3
+      Name: !Sub 'AccountManager-${GitBranch}'
+      RoleArn: !Sub 'arn:aws:iam::${AWS::AccountId}:role/AccountManager-${GitBranch}-CodePipelineServiceRole'
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: SourceAction
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Version: 1
+                Provider: CodeStarSourceConnection
+              OutputArtifacts:
+                - Name: SourceOutput
+              Configuration:
+                ConnectionArn: !Ref CodestarConnectionArn
+                FullRepositoryId: !Sub '${GitOwner}/${GitRepo}'
+                BranchName: master
+              RunOrder: 1
+        - Name: UpdatePipelinePermissions
+          Actions:
+            - Name: DeployAction
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: 1
+                Provider: CloudFormation
+              InputArtifacts:
+                - Name: SourceOutput
+              Configuration:
+                ActionMode: CREATE_UPDATE
+                StackName: !Sub 'AccountManager-${GitBranch}-iam-permissions'
+                Capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM
+                ParameterOverrides: !Sub '{"GitBranch": "${GitBranch}"}'
+                TemplatePath: 'SourceOutput::cfn/iam-permissions.yaml'
+                RoleArn: !Sub 'arn:aws:iam::${AWS::AccountId}:role/AccountManager-${GitBranch}-CodePipelineServiceRole'
+              RunOrder: 2
+        - Name: UpdatePipeline
+          Actions:
+            - Name: DeployAction
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: 1
+                Provider: CloudFormation
+              InputArtifacts:
+                - Name: SourceOutput
+              Configuration:
+                ActionMode: CREATE_UPDATE
+                StackName: !Sub 'AccountManager-${GitBranch}'
+                Capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM
+                ParameterOverrides: !Sub '{"GitOwner": "${GitOwner}","GitRepo": "${GitRepo}","GitBranch": "${GitBranch}","VpcId": "${VpcId}","DomainName": "${DomainName}"}'
+                TemplatePath: 'SourceOutput::cfn/pipeline.yaml'
+                RoleArn: !Sub 'arn:aws:iam::${AWS::AccountId}:role/AccountManager-${GitBranch}-CodePipelineServiceRole'
+              RunOrder: 3
+        - Name: BuildAndDeploy
+          Actions:
+            - Name: BuildAction
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: 1
+                Provider: CodeBuild
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: BuildOutput
+              Configuration:
+                ProjectName: !Ref CodeBuildProject
+              RunOrder: 4
+
+  # PipelineArtifactsBucket:
+  #   Type: AWS::S3::Bucket
+  #   Properties:
+  #     BucketName: accountmanager-pipeline-artifacts-bucket
+
+  CodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: AccountManager-CodeBuildProject
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:4.0
+        Type: LINUX_CONTAINER
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: |
+          version: 0.2
+          phases:
+            install:
+              runtime-versions:
+                dotnet: 6.0
+            build:
+              commands:
+                - dotnet publish app/AccountManager/AccountManager/AccountManager.csproj
+                - (cd app/AccountManager/AccountManager/bin/Debug/net6.0/publish/ && zip -r AccountManager.zip .)
+            post_build:
+              commands:
+                - aws s3 cp app/AccountManager/AccountManager/bin/Debug/net6.0/publish/AccountManager.zip s3://accountmanager-master-pipeline-artifacts-bucket/AccountManager.zip
+                - aws lambda update-function-code --function-name AccountManager --s3-bucket accountmanager-master-pipeline-artifacts-bucket --s3-key AccountManager.zip
+          artifacts:
+            files:
+              - app/AccountManager/AccountManager/bin/Debug/net6.0/publish/AccountManager.zip
+
+  CodeBuildServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      RoleName: !Sub 'AccountManager-${GitBranch}-CodeBuildServiceRole'
+      Policies:
+        - PolicyName: CodeBuildServiceRolePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:GetBucketAcl
+                  - s3:GetBucketLocation
+                  - s3:GetBucketPolicy
+                  - s3:PutBucketPolicy
+                  - s3:ListBucket
+                  - s3:ListBucketMultipartUploads
+                  - s3:ListMultipartUploadParts
+                  - s3:AbortMultipartUpload
+                  - s3:PutObjectAcl
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - lambda:UpdateFunctionCode
+                  - lambda:ListFunctions
+                  - lambda:GetFunctionConfiguration
+                Resource: !Sub 'arn:aws:lambda:*:*:function:AccountManager'
