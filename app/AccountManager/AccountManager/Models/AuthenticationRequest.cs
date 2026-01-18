@@ -22,8 +22,12 @@ namespace AccountManager.Models
         public AuthenticationRequest(IFormCollection collection)
         {
             // put form into variables
-            UserName = collection["username"];
-            Password = collection["password"];
+            if (collection != null) {
+                if (collection.ContainsKey("username")) {
+                    UserName = collection["username"];
+                }
+                Password = collection["password"];
+            }
         }
 
     }

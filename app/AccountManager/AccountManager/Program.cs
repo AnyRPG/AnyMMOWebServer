@@ -1,137 +1,48 @@
-using Amazon.Lambda.Logging.AspNetCore;
-using Amazon.AspNetCore.DataProtection.SSM;
-using AccountManager.Database;
-using AccountManager.Models;
-using AccountManager.Services;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
-using System.Configuration;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.OpenApi.Models;
+using System;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
+builder.Services.AddControllers();
 
-// bind configuration data to settings class and add it for dependency injection
-var settings = new AccountManagerSettings();
-builder.Configuration.Bind("AccountManagerSettings", settings);
-if (builder.Environment.IsProduction())
-{
-    builder.Configuration.AddSystemsManager("/app/AccountManager");
-    settings.BearerKey = builder.Configuration["BearerKey"];
-}
-builder.Services.AddSingleton(settings);
-
-// configure logging - console for local, lambda logger for production
-if (builder.Environment.IsProduction())
-{
-    builder.Host.ConfigureLogging(logging =>
-    {
-        logging.ClearProviders();
-        logging.AddLambdaLogger();
-    });
-} else {
-    builder.Host.ConfigureLogging(logging =>
-    {
-        logging.ClearProviders();
-        logging.AddConsole();
-    });
-}
-
-// use mysql
-if (builder.Environment.IsProduction())
-{
-    builder.Services.AddDbContext<GameDbContext>(o =>
-        o.UseMySQL(builder.Configuration["DatabaseConnectionString"])
-    );
-} else
-{
-builder.Services.AddDbContext<GameDbContext>(o =>
-    o.UseMySQL(builder.Configuration.GetConnectionString("Db"))
-);
-}
-
-// allow different instances to share the same key so cookies and login work
-if (builder.Environment.IsProduction())
-{
-    builder.Services.AddDataProtection()
-        .PersistKeysToAWSSystemsManager("/app/AccountManager/DataProtection");
-}
-
-// setup controllers
-builder.Services.AddControllersWithViews();
-
-// allow this app to run in a lambda
-// uncomment HttpApi for calling directly through lambda function URL
-//builder.Services.AddAWSLambdaHosting(LambdaEventSource.HttpApi);
-// uncomment ApplicationLoadBalancer for calling through an application load balancer
-builder.Services.AddAWSLambdaHosting(LambdaEventSource.ApplicationLoadBalancer);
-
-// make authentication service available to dependency injection
-builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
-
-// configure site to use jwt for authentication
-/*
-builder.Services.AddAuthentication(opt => {
-    opt.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    opt.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-}).AddJwtBearer(options => {
-    options.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuer = false,
-        ValidateAudience = false,
-        //ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,
-        //ValidIssuer = ConfigurationManager.AppSetting["JWT:ValidIssuer"],
-        //ValidAudience = ConfigurationManager.AppSetting["JWT:ValidAudience"],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(settings.BearerKey))
-    };
+// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c => {
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "AnyRPG AccountManager API", Version = "v1" });
 });
-*/
 
-// configure site to use cookies for authentication
-builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
-            .AddCookie(options =>
-            {
-                options.LoginPath = "/Home";
-                options.ExpireTimeSpan = TimeSpan.FromMinutes(10);
-                options.SlidingExpiration = true;
-            })
-            .AddJwtBearer(options => {
-                options.TokenValidationParameters = new TokenValidationParameters
-                {
-                    ValidateIssuer = false,
-                    ValidateAudience = false,
-                    //ValidateLifetime = true,
-                    ValidateIssuerSigningKey = true,
-                    //ValidIssuer = ConfigurationManager.AppSetting["JWT:ValidIssuer"],
-                    //ValidAudience = ConfigurationManager.AppSetting["JWT:ValidAudience"],
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(settings.BearerKey))
-                };
-            });
+// Configure CORS if necessary
+builder.Services.AddCors(options => {
+    options.AddPolicy("AllowAll",
+        builder => {
+            builder.AllowAnyOrigin()
+                   .AllowAnyMethod()
+                   .AllowAnyHeader();
+        });
+});
+
+// NOTE: Ensure your Database Context and Identity services are registered here if they were previously in Startup.cs
+// Example: builder.Services.AddDbContext<AccountContext>(options => ...);
 
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (!app.Environment.IsDevelopment())
-{
-    app.UseExceptionHandler("/Error");
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
-    app.UseHsts();
+if (app.Environment.IsDevelopment()) {
+    app.UseDeveloperExceptionPage();
+    app.UseSwagger();
+    app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "AnyRPG AccountManager API v1"));
 }
 
 app.UseHttpsRedirection();
-app.UseStaticFiles();
 
-app.UseRouting();
+app.UseCors("AllowAll");
 
-app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapControllerRoute(
-    name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}");
+app.MapControllers();
 
 app.Run();

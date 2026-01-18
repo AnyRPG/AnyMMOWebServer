@@ -55,3 +55,10 @@ Create an SSM parameter with the name `/app/AccountManager/BearerKey` and put an
 Run `./deploy.sh`
 
 The first time the cloudformation runs, an SSL certificate will be created by AWS.  In order for that certificate to be verified, you will need to look at Route53 and look at the newly created domain, account.yourdomain.com.  You will need to add the NS servers from that domain to the DNS records in the top level domain, yourdomain.com.  Until that is done, aws will not be able to find the custom CNAME record it creates in account.yourdomain.com, and the certificate will not finish creating.
+
+# New directions
+
+Run 'dotnet restore' and 'dotnet build' to ensure all dependencies resolve correctly.
+
+Build the image: docker build -t account-manager .
+Run the container: docker run -p 5000:80 account-manager
