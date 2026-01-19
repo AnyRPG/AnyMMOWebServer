@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  # The backend webserver (Your existing container)
+  anymmo-webserver:
+    image: anymmo-webserver:latest
+    # Note: We don't expose 8080 to the host, it stays within the internal network
+    expose:
+      - "8080"
+    restart: always
+
+  # The SSL Reverse Proxy
+  ssl-proxy:
+    image: anymmo-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - anymmo-webserver
+    restart: always
+
+networks:
+  default:
+    name: anymmo-network

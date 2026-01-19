@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using AccountManager.Models;
+using AnyMMOWebServer.Models;
 
-namespace AccountManager.Database
+namespace AnyMMOWebServer.Database
 {
     public class GameDbContext : DbContext {
         public GameDbContext(DbContextOptions<GameDbContext> options) : base(options) {

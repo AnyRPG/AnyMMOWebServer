@@ -1,6 +1,6 @@
-﻿using AccountManager.Database;
-using AccountManager.Models;
-using AccountManager.Services;
+﻿using AnyMMOWebServer.Database;
+using AnyMMOWebServer.Models;
+using AnyMMOWebServer.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
@@ -9,7 +9,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
-namespace AccountManager.Controllers
+namespace AnyMMOWebServer.Controllers
 {
     
     public class AccountController : Controller
@@ -17,16 +17,16 @@ namespace AccountManager.Controllers
         private readonly GameDbContext dbContext;
         private readonly UserAccountService accountService;
         private readonly ILogger<AccountController> logger;
-        private readonly AccountManager.Services.IAuthenticationService authenticationService;
-        private readonly AccountManagerSettings accountManagerSettings;
+        private readonly AnyMMOWebServer.Services.IAuthenticationService authenticationService;
+        private readonly AnyMMOWebServerSettings accountManagerSettings;
 
-        public AccountController(ILogger<AccountController> logger, GameDbContext dbContext, AccountManagerSettings accountManagerSettings, AccountManager.Services.IAuthenticationService authenticationService)
+        public AccountController(ILogger<AccountController> logger, GameDbContext dbContext, AnyMMOWebServerSettings accountManagerSettings, AnyMMOWebServer.Services.IAuthenticationService authenticationService)
         {
             this.dbContext = dbContext;
             this.accountManagerSettings = accountManagerSettings;
             accountService = new UserAccountService(dbContext);
             this.authenticationService = authenticationService;
-            //authenticationService = new AccountManager.Services.AuthenticationService(accountManagerSettings, dbContext, logger);
+            //authenticationService = new AnyMMOWebServer.Services.AuthenticationService(accountManagerSettings, dbContext, logger);
             this.logger = logger;
         }
 

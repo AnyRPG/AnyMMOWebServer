@@ -1,7 +1,7 @@
-﻿using AccountManager.Database;
-using AccountManager.Models;
+﻿using AnyMMOWebServer.Database;
+using AnyMMOWebServer.Models;
 
-namespace AccountManager.Services
+namespace AnyMMOWebServer.Services
 {
     public class UserAccountService
     {

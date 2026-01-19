@@ -2,7 +2,7 @@
 
 #nullable disable
 
-namespace AccountManager.Migrations
+namespace AnyMMOWebServer.Migrations
 {
     public partial class Email : Migration
     {

@@ -1,8 +1,8 @@
-﻿namespace AccountManager.Models
+﻿namespace AnyMMOWebServer.Models
 {
-    public class AccountManagerSettings
+    public class AnyMMOWebServerSettings
     {
-        public AccountManagerSettings() {
+        public AnyMMOWebServerSettings() {
             BearerKey = string.Empty;
         }
         public string BearerKey { get; set; }

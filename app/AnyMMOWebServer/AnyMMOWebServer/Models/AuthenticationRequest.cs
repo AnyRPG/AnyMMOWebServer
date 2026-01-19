@@ -1,6 +1,6 @@
 ﻿using System.Security.Permissions;
 
-namespace AccountManager.Models
+namespace AnyMMOWebServer.Models
 {
     public class AuthenticationRequest
     {

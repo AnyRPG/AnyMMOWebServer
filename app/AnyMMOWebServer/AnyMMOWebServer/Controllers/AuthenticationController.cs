@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 
-namespace AccountManager.Controllers
+namespace AnyMMOWebServer.Controllers
 {
     public class AuthenticationController : Controller
     {

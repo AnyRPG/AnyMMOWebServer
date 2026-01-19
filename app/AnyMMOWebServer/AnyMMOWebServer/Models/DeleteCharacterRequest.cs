@@ -1,4 +1,4 @@
-﻿namespace AccountManager.Models
+﻿namespace AnyMMOWebServer.Models
 {
     public class DeleteCharacterRequest
     {

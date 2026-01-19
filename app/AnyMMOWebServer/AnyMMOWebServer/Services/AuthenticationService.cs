@@ -1,5 +1,5 @@
-﻿using AccountManager.Database;
-using AccountManager.Models;
+﻿using AnyMMOWebServer.Database;
+using AnyMMOWebServer.Models;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.IdentityModel.Tokens;
@@ -8,15 +8,15 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace AccountManager.Services
+namespace AnyMMOWebServer.Services
 {
     public class AuthenticationService : IAuthenticationService
     {
-        private readonly AccountManagerSettings accountManagerSettings;
+        private readonly AnyMMOWebServerSettings accountManagerSettings;
         private readonly GameDbContext gameDbContext;
         private readonly ILogger<AuthenticationService> logger;
 
-        public AuthenticationService(AccountManagerSettings accountManagerSettings, GameDbContext gameDbContext, ILogger<AuthenticationService> logger)
+        public AuthenticationService(AnyMMOWebServerSettings accountManagerSettings, GameDbContext gameDbContext, ILogger<AuthenticationService> logger)
         {
             this.accountManagerSettings = accountManagerSettings;
             this.gameDbContext = gameDbContext;

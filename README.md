@@ -1,18 +1,18 @@
 # Introduction
 
-AccountManager is a .net core 6 web application designed to run on AWS in a lambda to keep costs low by taking advantage of the AWS free tier.
+AccountManager is a .net core 8 web application designed to run on docker for portability.
 It allows users to go to a web site and create accounts that can be used to log into an AnyMMO network server.
 
 # Project Organization
 
-The project has 3 main parts: a deploy script, a folder that contains the .net core 6 web app, and a folder that contains aws infrastructure definitions.
+The project has 2 main parts: a dockerfile, and a folder that contains the .net core 8 web app,
 
-The deploy script will make the appropriate AWS CLI calls to install the application and its build pipeline to AWS.
 
 # Requirements
 
-* An AWS account and properly configured AWS CLI : https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
-* A MySQL database.  Currently, this project does not setup any database on AWS.
+1. A MySQL database.  The schema must already be created and the user account created with appropriate permissions assigned to the schema.
+
+2. Docker.  Ensure the docker daemon or service is running.
 
 # Application Setup
 
@@ -22,6 +22,8 @@ To install or run the application, the database must be configured.  Running the
 
 Copy appsettings.json to appsettings.Development.json and add a connection string, using the proper values for your database.
 
+**Note:** do not use localhost for the database server hostname.  If you do, the docker based web site will assume the database is running in the same container and fail to connect.
+
 ```
 "ConnectionStrings": {
     "Db": "server=mysql.yourdomain.com;database=your_database_name;user=your_database_user_name;password=your_database_password"
@@ -30,9 +32,9 @@ Copy appsettings.json to appsettings.Development.json and add a connection strin
 
 ## Update database tables
 
-Open Powershell
+In Visual Studio, right click the solution name in the solution explorer and choose *Open In Terminal*
 
-`dotnet tool install --global dotnet-ef --version 6.*`
+`dotnet tool install --global dotnet-ef --version 8.*`
 
 Replace the word Initial with a database commit message
 
@@ -42,23 +44,16 @@ Look at the new file in the Migrations folder in visual studio and check the cod
 
 `dotnet ef database update`
 
-# AWS Setup
+## Docker Setup
 
-Create a codestar connection to monitor the github repository (if you have never connected a github repo to your AWS account before) : https://docs.aws.amazon.com/dtconsole/latest/userguide/connections-create-github.html
+Build the image
 
-Create an SSM parameter with the name `/app/AccountManager/CodestarConnectionArn` and put the arn of the codestar connection in it
+`docker build -t anymmo-webserver .`
 
-Create an SSM parameter with the name `/app/AccountManager/DatabaseConnectionString` and put the database connection string in it
+Run the container
 
-Create an SSM parameter with the name `/app/AccountManager/BearerKey` and put any secret string in it
+`docker run -p 8080:8080 anymmo-webserver`
 
-Run `./deploy.sh`
+Or as a daemon
 
-The first time the cloudformation runs, an SSL certificate will be created by AWS.  In order for that certificate to be verified, you will need to look at Route53 and look at the newly created domain, account.yourdomain.com.  You will need to add the NS servers from that domain to the DNS records in the top level domain, yourdomain.com.  Until that is done, aws will not be able to find the custom CNAME record it creates in account.yourdomain.com, and the certificate will not finish creating.
-
-# New directions
-
-Run 'dotnet restore' and 'dotnet build' to ensure all dependencies resolve correctly.
-
-Build the image: docker build -t account-manager .
-Run the container: docker run -p 5000:80 account-manager
+`docker run -d -p 8080:8080 anymmo-webserver`

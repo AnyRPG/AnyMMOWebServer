@@ -3,12 +3,12 @@ Prerequisites :
 --------------------------
 To deploy this Web package, Web Deploy (msdeploy.exe) must be installed on the computer that runs the .cmd file. For information about how to install Web Deploy, see the following URL:
 https://go.microsoft.com/?linkid=9278654
-This batch file requires that the package file "AccountManager.zip" and optionally provided the parameters file "AccountManager.SetParameters.xml" in the same folder or destination folder by environment variable.
+This batch file requires that the package file "AnyMMOWebServer.zip" and optionally provided the parameters file "AnyMMOWebServer.SetParameters.xml" in the same folder or destination folder by environment variable.
 
 ===========================
 Usage:
 --------------------------
-AccountManager.deploy.cmd [/T|/Y] [/M:ComputerName] [/U:UserName] [/P:Password] [/G:<True | False>] [/A:<Basic | NTLM>] [Additional msdeploy.exe flags ...]
+AnyMMOWebServer.deploy.cmd [/T|/Y] [/M:ComputerName] [/U:UserName] [/P:Password] [/G:<True | False>] [/A:<Basic | NTLM>] [Additional msdeploy.exe flags ...]
 
 
 ===========================
@@ -46,7 +46,7 @@ Optional Flags:
 	Specifies that the package is deployed to local IISExpress user instance.
 
 [Additional msdeploy.exe flags]
-	The msdeploy.exe command supports additional flags. You can include any of these additional flags in the "AccountManager.Deploy.cmd" file, and the flags are passed through to msdeploy.exe during execution.
+	The msdeploy.exe command supports additional flags. You can include any of these additional flags in the "AnyMMOWebServer.Deploy.cmd" file, and the flags are passed through to msdeploy.exe during execution.
 	Alternatively, you can specify additional flags by setting the "_MsDeployAdditionalFlags" environment variable. These settings are used by this batch file.
 	Note: Any flag value that includes an equal sign (=) must be enclosed in double quotation marks, as shown in the following example, which will skip deploying the databases that are included in the package:
 		"-skip:objectName=dbFullSql" 
@@ -56,6 +56,6 @@ Environment-Specific Settings:
 --------------------------
 
 	To customize application-specific settings for each deployment environment (for example, the IIS application name, the physical path, and any connection strings), edit the settings in the following file: 
-		 "AccountManager.SetParameters.xml"
+		 "AnyMMOWebServer.SetParameters.xml"
 ===========================
 For more information on this deploy script visit:	https://go.microsoft.com/fwlink/?LinkID=183544

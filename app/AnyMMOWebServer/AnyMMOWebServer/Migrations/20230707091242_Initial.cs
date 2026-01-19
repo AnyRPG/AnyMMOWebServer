@@ -3,7 +3,7 @@ using MySql.EntityFrameworkCore.Metadata;
 
 #nullable disable
 
-namespace AccountManager.Migrations
+namespace AnyMMOWebServer.Migrations
 {
     public partial class Initial : Migration
     {

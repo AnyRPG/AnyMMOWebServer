@@ -8,7 +8,7 @@
     }
   },
   "profiles": {
-    "AccountManager": {
+    "AnyMMOWebServer": {
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": true,
