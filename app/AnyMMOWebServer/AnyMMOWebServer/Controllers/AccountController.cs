@@ -18,15 +18,15 @@ namespace AnyMMOWebServer.Controllers
         private readonly UserAccountService accountService;
         private readonly ILogger<AccountController> logger;
         private readonly AnyMMOWebServer.Services.IAuthenticationService authenticationService;
-        private readonly AnyMMOWebServerSettings accountManagerSettings;
+        private readonly AnyMMOWebServerSettings anyMMOWebServerSettings;
 
-        public AccountController(ILogger<AccountController> logger, GameDbContext dbContext, AnyMMOWebServerSettings accountManagerSettings, AnyMMOWebServer.Services.IAuthenticationService authenticationService)
+        public AccountController(ILogger<AccountController> logger, GameDbContext dbContext, AnyMMOWebServerSettings anyMMOWebServerSettings, AnyMMOWebServer.Services.IAuthenticationService authenticationService)
         {
             this.dbContext = dbContext;
-            this.accountManagerSettings = accountManagerSettings;
+            this.anyMMOWebServerSettings = anyMMOWebServerSettings;
             accountService = new UserAccountService(dbContext);
             this.authenticationService = authenticationService;
-            //authenticationService = new AnyMMOWebServer.Services.AuthenticationService(accountManagerSettings, dbContext, logger);
+            //authenticationService = new AnyMMOWebServer.Services.AuthenticationService(anyMMOWebServerSettings, dbContext, logger);
             this.logger = logger;
         }
 

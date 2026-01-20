@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # The backend webserver (Your existing container)
   anymmo-webserver:

@@ -12,13 +12,13 @@ namespace AnyMMOWebServer.Services
 {
     public class AuthenticationService : IAuthenticationService
     {
-        private readonly AnyMMOWebServerSettings accountManagerSettings;
+        private readonly AnyMMOWebServerSettings anyMMOWebServerSettings;
         private readonly GameDbContext gameDbContext;
         private readonly ILogger<AuthenticationService> logger;
 
-        public AuthenticationService(AnyMMOWebServerSettings accountManagerSettings, GameDbContext gameDbContext, ILogger<AuthenticationService> logger)
+        public AuthenticationService(AnyMMOWebServerSettings anyMMOWebServerSettings, GameDbContext gameDbContext, ILogger<AuthenticationService> logger)
         {
-            this.accountManagerSettings = accountManagerSettings;
+            this.anyMMOWebServerSettings = anyMMOWebServerSettings;
             this.gameDbContext = gameDbContext;
             this.logger = logger;
         }
@@ -130,7 +130,7 @@ namespace AnyMMOWebServer.Services
         private string GenerateJwtToken(ClaimsIdentity subject)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
-            var key = Encoding.ASCII.GetBytes(accountManagerSettings.BearerKey);
+            var key = Encoding.ASCII.GetBytes(anyMMOWebServerSettings.BearerKey);
             var tokenDescriptor = new SecurityTokenDescriptor
             {
                 Subject = subject,

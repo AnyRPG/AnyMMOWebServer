@@ -20,15 +20,15 @@ namespace AnyMMOWebServer.Controllers
         private readonly PlayerCharacterService playerCharacterService;
         private readonly ILogger<ApiController> logger;
         private readonly AnyMMOWebServer.Services.IAuthenticationService authenticationService;
-        private readonly AnyMMOWebServerSettings accountManagerSettings;
+        private readonly AnyMMOWebServerSettings anyMMOWebServerSettings;
 
-        public ApiController(ILogger<ApiController> logger, GameDbContext dbContext, AnyMMOWebServerSettings accountManagerSettings, AnyMMOWebServer.Services.IAuthenticationService authenticationService)
+        public ApiController(ILogger<ApiController> logger, GameDbContext dbContext, AnyMMOWebServerSettings anyMMOWebServerSettings, AnyMMOWebServer.Services.IAuthenticationService authenticationService)
         {
             this.dbContext = dbContext;
-            this.accountManagerSettings = accountManagerSettings;
+            this.anyMMOWebServerSettings = anyMMOWebServerSettings;
             playerCharacterService = new PlayerCharacterService(dbContext, logger);
             this.authenticationService = authenticationService;
-            //authenticationService = new AnyMMOWebServer.Services.AuthenticationService(accountManagerSettings, dbContext, logger);
+            //authenticationService = new AnyMMOWebServer.Services.AuthenticationService(anyMMOWebServerSettings, dbContext, logger);
             this.logger = logger;
         }
 

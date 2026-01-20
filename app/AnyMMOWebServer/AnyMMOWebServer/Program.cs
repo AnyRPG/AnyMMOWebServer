@@ -15,9 +15,9 @@ var builder = WebApplication.CreateBuilder(args);
 // bind configuration data to settings class and add it for dependency injection
 var settings = new AnyMMOWebServerSettings();
 builder.Configuration.Bind("AnyMMOWebServerSettings", settings);
-if (builder.Environment.IsProduction()) {
-    settings.BearerKey = builder.Configuration["BearerKey"];
-}
+//if (builder.Environment.IsProduction()) {
+    //settings.BearerKey = builder.Configuration["BearerKey"];
+//}
 builder.Services.AddSingleton(settings);
 
 // configure logging - console for local, lambda logger for production

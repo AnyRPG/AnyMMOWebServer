@@ -57,3 +57,19 @@ Run the container
 Or as a daemon
 
 `docker run -d -p 8080:8080 anymmo-webserver`
+
+## Nginx Setup
+
+If you are running the service locally, you will need to run the nginx container with the self signed certificate, as Unity will not allow insecure (http) connections by default.
+
+Build the image
+
+`docker build -t anymmo-nginx anymmo-nginx`
+
+Run both the webserver and the nginx containers at the same time
+
+`docker-compose up`
+
+or as a daemon
+
+`docker-compose up -d`
