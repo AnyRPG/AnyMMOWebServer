@@ -1,13 +1,12 @@
 ﻿namespace AnyMMOWebServer.Models
 {
-    public class CreateCharacterRequest
+    public class Guild
     {
-        public int AccountId { get; set; }
+        public int Id { get; set; }
         public string Name { get; set; }
         public string SaveData { get; set; }
 
-        public CreateCharacterRequest()
-        {
+        public Guild() {
             Name = string.Empty;
             SaveData = string.Empty;
         }

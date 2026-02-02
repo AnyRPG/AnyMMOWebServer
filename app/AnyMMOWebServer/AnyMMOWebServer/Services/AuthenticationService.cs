@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
+using System.Net;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -27,10 +28,10 @@ namespace AnyMMOWebServer.Services
         {
 
             // put form into variables
-            string userName = collection["UserName"];
-            string password = collection["Password"];
-            string email = collection["Email"];
-            string phone = collection["Phone"];
+            string userName = collection["UserName"].ToString();
+            string password = collection["Password"].ToString();
+            string email = collection["Email"].ToString();
+            string phone = collection["Phone"].ToString();
 
             // format a user object and return the value of the registration attempt
             User user = new User()
@@ -64,44 +65,50 @@ namespace AnyMMOWebServer.Services
 
         }
 
-        /*
-        public (bool success, string content) LoginUserFromForm(IFormCollection collection)
+        public (bool success, AuthenticationResponse? authenticationResponse) Login(AuthenticationRequest authenticationRequest, HttpContext httpContext)
         {
-
-            // put form into variables
-            string userName = collection["username"];
-            string password = collection["password"];
-
-            return Login(userName, password);
-        }
-        */
-
-        public (bool sucess, string token) Login(AuthenticationRequest authenticationRequest, HttpContext httpContext)
-        {
+            IPAddress? remoteIpAddress = httpContext.Connection.RemoteIpAddress;
+            string ipAddress = remoteIpAddress != null ? remoteIpAddress.ToString() : "Unknown";
             var user = gameDbContext.Users.SingleOrDefault(u => u.UserName == authenticationRequest.UserName);
             if (user == null)
             {
-                logger.LogInformation($"[LOGIN] invalid username {authenticationRequest.UserName}");
-                return (false, "Invalid username");
+                logger.LogInformation($"[LOGIN] invalid username {authenticationRequest.UserName} from IP {ipAddress}");
+                return (false, null);
             }
 
             if (user.PasswordHash != AuthenticationHelpers.ComputeHash(authenticationRequest.Password, user.Salt))
             {
-                logger.LogInformation($"[LOGIN] invalid password for user {authenticationRequest.UserName}");
-                return (false, "Invalid password");
+                logger.LogInformation($"[LOGIN] invalid password for user {authenticationRequest.UserName} from IP {ipAddress}");
+                return (false, null);
             }
 
             var task = CookieLogin(user, httpContext);
             task.Wait();
 
-            logger.LogInformation($"[LOGIN] Successfully logged in user {authenticationRequest.UserName}");
+            logger.LogInformation($"[LOGIN] Successfully logged in user {authenticationRequest.UserName} from IP {ipAddress}");
+            AuthenticationResponse _authenticationResponse = new AuthenticationResponse() { AccountId = user.Id };
+            _authenticationResponse.Token = GenerateJwtToken(AssembleClaimsIdentity(user));
+            return (true, _authenticationResponse);
+        }
 
-            return (true, GenerateJwtToken(AssembleClaimsIdentity(user)));
+        public (bool success, string token) ServerLogin(ServerAuthenticationRequest authenticationRequest, HttpContext httpContext) {
+
+            IPAddress? remoteIpAddress = httpContext.Connection.RemoteIpAddress;
+            string ipAddress = remoteIpAddress != null ? remoteIpAddress.ToString() : "Unknown";
+
+            if (authenticationRequest.SharedSecret != anyMMOWebServerSettings.SharedSecret) {
+                logger.LogInformation($"[LOGIN] invalid shared secret for server from IP {ipAddress}");
+                return (false, "Invalid password");
+            }
+
+            logger.LogInformation($"[LOGIN] Successfully logged in server from IP {ipAddress}");
+
+            return (true, GenerateJwtToken(AssembleClaimsIdentity(authenticationRequest.SharedSecret)));
         }
 
         public void Logout(HttpContext httpContext)
         {
-            var task = httpContext.SignOutAsync();
+            var task = httpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             task.Wait();
             logger.LogInformation($"[LOGOUT] Logged out user");
         }
@@ -127,6 +134,14 @@ namespace AnyMMOWebServer.Services
             return subject;
         }
 
+        private ClaimsIdentity AssembleClaimsIdentity(string sharedSecret) {
+            var subject = new ClaimsIdentity(new[]{
+                new Claim("sharedSecret", sharedSecret),
+            });
+
+            return subject;
+        }
+
         private string GenerateJwtToken(ClaimsIdentity subject)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
@@ -141,6 +156,32 @@ namespace AnyMMOWebServer.Services
             return tokenHandler.WriteToken(token);
         }
 
+        public (bool success, string errorMessage) ChangePassword(int userId, string oldPassword, string newPassword) {
+            var user = gameDbContext.Users.Find(userId);
+            if (user == null) {
+                return (false, "User not found.");
+            }
+
+            // 1. Verify old password using your existing ComputeHash logic
+            string hashedOldPassword = AuthenticationHelpers.ComputeHash(oldPassword, user.Salt);
+            if (user.PasswordHash != hashedOldPassword) {
+                logger.LogInformation($"[PASSWORD CHANGE] Failed for user {user.UserName}: Incorrect old password.");
+                return (false, "Current password is incorrect.");
+            }
+
+            // 2. Update password
+            // Using your model's existing logic to generate a new salt and hash
+            user.PasswordHash = newPassword; // Assuming ProvideSaltAndHash reads from the Password property
+            user.ProvideSaltAndHash();
+
+            gameDbContext.Update(user);
+            gameDbContext.SaveChanges();
+
+            logger.LogInformation($"[PASSWORD CHANGE] Success for user {user.UserName}");
+            return (true, string.Empty);
+        }
+
+
     }
 
 
@@ -148,9 +189,11 @@ namespace AnyMMOWebServer.Services
     public interface IAuthenticationService
     {
         (bool success, string content) Register(User user);
-        (bool sucess, string token) Login(AuthenticationRequest authenticationRequest, HttpContext httpContext);
+        (bool success, AuthenticationResponse? authenticationResponse) Login(AuthenticationRequest authenticationRequest, HttpContext httpContext);
+        (bool success, string token) ServerLogin(ServerAuthenticationRequest authenticationRequest, HttpContext httpContext);
         (bool success, string content) AddUserFromForm(IFormCollection collection);
         void Logout(HttpContext httpContext);
+        (bool success, string errorMessage) ChangePassword(int userId, string oldPassword, string newPassword);
     }
 
     public static class AuthenticationHelpers
@@ -174,9 +217,14 @@ namespace AnyMMOWebServer.Services
         {
             var salt = Convert.FromBase64String(saltString);
 
-            using var hashGenerator = new Rfc2898DeriveBytes(password, salt);
-            hashGenerator.IterationCount = 10101;
-            var bytes = hashGenerator.GetBytes(24);
+            using var hashGenerator = new Rfc2898DeriveBytes(
+                    password,
+                    salt,
+                    iterations: 600000,
+                    HashAlgorithmName.SHA256);
+
+            var bytes = hashGenerator.GetBytes(32); // 32 bytes for SHA-256
+
             return Convert.ToBase64String(bytes);
         }
     }

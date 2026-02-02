@@ -5,14 +5,22 @@ services:
     # Note: We don't expose 8080 to the host, it stays within the internal network
     expose:
       - "8080"
+    volumes:
+      - dp-keys:/app/keys
     restart: always
 
   # The SSL Reverse Proxy
   ssl-proxy:
     image: anymmo-nginx
     ports:
-      - "80:80"
-      - "443:443"
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: host # <--- This preserves the real IP
+      - target: 443
+        published: 443
+        protocol: tcp
+        mode: host
     depends_on:
       - anymmo-webserver
     restart: always
@@ -20,3 +28,6 @@ services:
 networks:
   default:
     name: anymmo-network
+    
+volumes:
+  dp-keys:

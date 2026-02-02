@@ -9,6 +9,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using NuGet.Protocol;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace AnyMMOWebServer.Controllers
 {
@@ -18,6 +19,11 @@ namespace AnyMMOWebServer.Controllers
     {
         private readonly GameDbContext dbContext;
         private readonly PlayerCharacterService playerCharacterService;
+        private readonly GuildService guildService;
+        private readonly FriendListService friendListService;
+        private readonly AuctionItemService auctionItemService;
+        private readonly ItemInstanceService itemInstanceService;
+        private readonly MailMessageService mailMessageService;
         private readonly ILogger<ApiController> logger;
         private readonly AnyMMOWebServer.Services.IAuthenticationService authenticationService;
         private readonly AnyMMOWebServerSettings anyMMOWebServerSettings;
@@ -27,6 +33,11 @@ namespace AnyMMOWebServer.Controllers
             this.dbContext = dbContext;
             this.anyMMOWebServerSettings = anyMMOWebServerSettings;
             playerCharacterService = new PlayerCharacterService(dbContext, logger);
+            guildService = new GuildService(dbContext, logger);
+            friendListService = new FriendListService(dbContext, logger);
+            auctionItemService = new AuctionItemService(dbContext, logger);
+            itemInstanceService = new ItemInstanceService(dbContext, logger);
+            mailMessageService = new MailMessageService(dbContext, logger);
             this.authenticationService = authenticationService;
             //authenticationService = new AnyMMOWebServer.Services.AuthenticationService(anyMMOWebServerSettings, dbContext, logger);
             this.logger = logger;
@@ -37,14 +48,12 @@ namespace AnyMMOWebServer.Controllers
         {
             try
             {
-                //logger.LogInformation("Logging in user");
-                //AuthenticationRequest authenticationRequest = new AuthenticationRequest(collection);
                 var (success, content) = authenticationService.Login(authenticationRequest, HttpContext);
                 if (!success)
                 {
-                    return BadRequest(content);
+                    return Unauthorized(content);
                 }
-                return Ok(new AuthenticationResponse() { Token = content });
+                return Ok(content);
             } catch (Exception e)
             {
                 logger.LogError(e.ToString());
@@ -52,30 +61,42 @@ namespace AnyMMOWebServer.Controllers
             }
         }
 
+        [HttpPost("serverlogin")]
+        public ActionResult ServerLogin(ServerAuthenticationRequest authenticationRequest) {
+            try {
+                var (success, content) = authenticationService.ServerLogin(authenticationRequest, HttpContext);
+                if (!success) {
+                    return BadRequest(content);
+                }
+                AuthenticationResponse authenticationResponse = new AuthenticationResponse() { Token = content };
+                return Ok(authenticationResponse);
+            } catch (Exception e) {
+                logger.LogError(e.ToString());
+                return BadRequest("Error occured on server.  See server logs for more details.");
+            }
+        }
+
+        // *******************************************************************
+        // PLAYER CHARACTER
+        // *******************************************************************
+
         [HttpPost("createplayercharacter")]
         [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
         public ActionResult CreatePlayerCharacter(CreateCharacterRequest createCharacterRequest)
         {
             try
             {
-                //logger.LogInformation("Logging in user");
-                // determine userId from JWT
-                var userIdString = User.FindFirst("id")?.Value;
-                if (userIdString == null) {
-                    return BadRequest("Could not determine User Id");
+                var sharedSecretString = User.FindFirst("sharedSecret")?.Value;
+                if (sharedSecretString == null || sharedSecretString != anyMMOWebServerSettings.SharedSecret) {
+                    return Unauthorized("invalid shared secret");
                 }
-                var userId = int.Parse(userIdString);
 
-                // for example - find user in database, then perform some validation
-                // var user = dbContext.Users.Include(u=>u.PlayerCharacters).First(u => u.Id == userId);
-                
-                // add new character
-                var success = playerCharacterService.AddPlayerCharacter(userId, createCharacterRequest);
+                (bool success, PlayerCharacter playerCharacter) = playerCharacterService.AddPlayerCharacter(createCharacterRequest);
                 if (!success)
                 {
                     return BadRequest();
                 }
-                return Ok();
+                return Ok(new CreatePlayerCharacterResponse() { Id = playerCharacter.Id });
             } catch (Exception e)
             {
                 logger.LogError(e.ToString());
@@ -89,20 +110,12 @@ namespace AnyMMOWebServer.Controllers
         {
             try
             {
-                //logger.LogInformation("Logging in user");
-                // determine userId from JWT
-                var userIdString = User.FindFirst("id")?.Value;
-                if (userIdString == null)
-                {
-                    return BadRequest("Could not determine User Id");
+                var sharedSecretString = User.FindFirst("sharedSecret")?.Value;
+                if (sharedSecretString == null || sharedSecretString != anyMMOWebServerSettings.SharedSecret) {
+                    return Unauthorized("invalid shared secret");
                 }
-                var userId = int.Parse(userIdString);
 
-                // for example - find user in database, then perform some validation
-                // var user = dbContext.Users.Include(u=>u.PlayerCharacters).First(u => u.Id == userId);
-
-                // add new character
-                var success = playerCharacterService.SavePlayerCharacter(userId, saveCharacterRequest);
+                var success = playerCharacterService.SavePlayerCharacter(saveCharacterRequest);
                 if (!success)
                 {
                     return BadRequest();
@@ -121,20 +134,12 @@ namespace AnyMMOWebServer.Controllers
         {
             try
             {
-                //logger.LogInformation("Logging in user");
-                // determine userId from JWT
-                var userIdString = User.FindFirst("id")?.Value;
-                if (userIdString == null)
-                {
-                    return BadRequest("Could not determine User Id");
+                var sharedSecretString = User.FindFirst("sharedSecret")?.Value;
+                if (sharedSecretString == null || sharedSecretString != anyMMOWebServerSettings.SharedSecret) {
+                    return Unauthorized("invalid shared secret");
                 }
-                var userId = int.Parse(userIdString);
 
-                // for example - find user in database, then perform some validation
-                // var user = dbContext.Users.Include(u=>u.PlayerCharacters).First(u => u.Id == userId);
-
-                // add new character
-                var success = playerCharacterService.DeletePlayerCharacter(userId, deleteCharacterRequest);
+                var success = playerCharacterService.DeletePlayerCharacter(deleteCharacterRequest);
                 if (!success)
                 {
                     return BadRequest();
@@ -149,30 +154,16 @@ namespace AnyMMOWebServer.Controllers
 
         [HttpPost("getplayercharacters")]
         [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
-        public ActionResult GetPlayerCharacters()
+        public ActionResult GetPlayerCharacters(LoadPlayerCharacterListRequest loadPlayerCharacterListRequest)
         {
             try
             {
-                //logger.LogInformation("Logging in user");
-                // determine userId from JWT
-                var userIdString = User.FindFirst("id")?.Value;
-                if (userIdString == null)
-                {
-                    return BadRequest("Could not determine User Id");
+                var sharedSecretString = User.FindFirst("sharedSecret")?.Value;
+                if (sharedSecretString == null || sharedSecretString != anyMMOWebServerSettings.SharedSecret) {
+                    return Unauthorized("invalid shared secret");
                 }
-                var userId = int.Parse(userIdString);
 
-                // for example - find user in database, then perform some validation
-                // var user = dbContext.Users.Include(u=>u.PlayerCharacters).First(u => u.Id == userId);
-
-                // get list of characters
-                PlayerCharacterListResponse playerCharacterListResponse = playerCharacterService.GetPlayerCharacters(userId);
-                /*
-                if (!success)
-                {
-                    return BadRequest();
-                }
-                */
+                PlayerCharacterListResponse playerCharacterListResponse = playerCharacterService.GetPlayerCharacters(loadPlayerCharacterListRequest.AccountId);
                 return Ok(playerCharacterListResponse);
             } catch (Exception e)
             {
@@ -180,6 +171,394 @@ namespace AnyMMOWebServer.Controllers
                 return BadRequest("Error occured on server.  See server logs for more details.");
             }
         }
+
+        [HttpPost("getallplayercharacters")]
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        public ActionResult GetAllPlayerCharacters() {
+            try {
+                var sharedSecretString = User.FindFirst("sharedSecret")?.Value;
+                if (sharedSecretString == null || sharedSecretString != anyMMOWebServerSettings.SharedSecret) {
+                    return Unauthorized("invalid shared secret");
+                }
+
+                // get list of characters
+                PlayerCharacterListResponse playerCharacterListResponse = playerCharacterService.GetAllPlayerCharacters();
+                return Ok(playerCharacterListResponse);
+            } catch (Exception e) {
+                logger.LogError(e.ToString());
+                return BadRequest("Error occured on server.  See server logs for more details.");
+            }
+        }
+
+
+        // *******************************************************************
+        // GUILD
+        // *******************************************************************
+
+        [HttpPost("createguild")]
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        public ActionResult CreateGuild(CreateGuildRequest createGuildRequest) {
+            try {
+                var sharedSecretString = User.FindFirst("sharedSecret")?.Value;
+                if (sharedSecretString == null || sharedSecretString != anyMMOWebServerSettings.SharedSecret) {
+                    return Unauthorized("invalid shared secret");
+                }
+
+                // add new guild
+                (bool success, Guild guild) = guildService.AddGuild(createGuildRequest);
+                if (!success) {
+                    return BadRequest();
+                }
+                return Ok(new CreateGuildResponse() { Id = guild.Id });
+            } catch (Exception e) {
+                logger.LogError(e.ToString());
+                return BadRequest("Error occured on server.  See server logs for more details.");
+            }
+        }
+
+        [HttpPost("saveguild")]
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        public ActionResult SaveGuild(SaveGuildRequest saveGuildRequest) {
+            try {
+                var sharedSecretString = User.FindFirst("sharedSecret")?.Value;
+                if (sharedSecretString == null || sharedSecretString != anyMMOWebServerSettings.SharedSecret) {
+                    return Unauthorized("invalid shared secret");
+                }
+
+                var success = guildService.SaveGuild(saveGuildRequest);
+                if (!success) {
+                    return BadRequest();
+                }
+                return Ok();
+            } catch (Exception e) {
+                logger.LogError(e.ToString());
+                return BadRequest("Error occured on server.  See server logs for more details.");
+            }
+        }
+
+        [HttpPost("deleteguild")]
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        public ActionResult DeleteGuild(DeleteGuildRequest deleteGuildRequest) {
+            try {
+                var sharedSecretString = User.FindFirst("sharedSecret")?.Value;
+                if (sharedSecretString == null || sharedSecretString != anyMMOWebServerSettings.SharedSecret) {
+                    return Unauthorized("invalid shared secret");
+                }
+
+                var success = guildService.DeleteGuild(deleteGuildRequest);
+                if (!success) {
+                    return BadRequest();
+                }
+                return Ok();
+            } catch (Exception e) {
+                logger.LogError(e.ToString());
+                return BadRequest("Error occured on server.  See server logs for more details.");
+            }
+        }
+
+        [HttpPost("getguilds")]
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        public ActionResult GetGuilds() {
+            try {
+                var sharedSecretString = User.FindFirst("sharedSecret")?.Value;
+                if (sharedSecretString == null || sharedSecretString != anyMMOWebServerSettings.SharedSecret) {
+                    return Unauthorized("invalid shared secret");
+                }
+
+                GuildListResponse guildListResponse = guildService.GetGuilds();
+                return Ok(guildListResponse);
+            } catch (Exception e) {
+                logger.LogError(e.ToString());
+                return BadRequest("Error occured on server.  See server logs for more details.");
+            }
+        }
+
+        // *******************************************************************
+        // FRIEND LIST
+        // *******************************************************************
+
+        [HttpPost("savefriendlist")]
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        public ActionResult SaveFriendList(SaveFriendListRequest saveFriendListRequest) {
+            try {
+                var sharedSecretString = User.FindFirst("sharedSecret")?.Value;
+                if (sharedSecretString == null || sharedSecretString != anyMMOWebServerSettings.SharedSecret) {
+                    return Unauthorized("invalid shared secret");
+                }
+
+                var success = friendListService.SaveFriendList(saveFriendListRequest);
+                if (!success) {
+                    return BadRequest();
+                }
+                return Ok();
+            } catch (Exception e) {
+                logger.LogError(e.ToString());
+                return BadRequest("Error occured on server.  See server logs for more details.");
+            }
+        }
+
+        [HttpPost("getfriendlists")]
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        public ActionResult GetFriendLists() {
+            try {
+                var sharedSecretString = User.FindFirst("sharedSecret")?.Value;
+                if (sharedSecretString == null || sharedSecretString != anyMMOWebServerSettings.SharedSecret) {
+                    return Unauthorized("invalid shared secret");
+                }
+
+                FriendListResponse friendListResponse = friendListService.GetFriendLists();
+                return Ok(friendListResponse);
+            } catch (Exception e) {
+                logger.LogError(e.ToString());
+                return BadRequest("Error occured on server.  See server logs for more details.");
+            }
+        }
+
+        // *******************************************************************
+        // AUCTION ITEM
+        // *******************************************************************
+
+        [HttpPost("createauctionitem")]
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        public ActionResult CreateAuctionItem(CreateAuctionItemRequest createAuctionItemRequest) {
+            try {
+                var sharedSecretString = User.FindFirst("sharedSecret")?.Value;
+                if (sharedSecretString == null || sharedSecretString != anyMMOWebServerSettings.SharedSecret) {
+                    return Unauthorized("invalid shared secret");
+                }
+
+                // add new auctionItem
+                (bool success, AuctionItem auctionItem) = auctionItemService.AddAuctionItem(createAuctionItemRequest);
+                if (!success) {
+                    return BadRequest();
+                }
+                return Ok(new CreateAuctionItemResponse() { Id = auctionItem.Id });
+            } catch (Exception e) {
+                logger.LogError(e.ToString());
+                return BadRequest("Error occured on server.  See server logs for more details.");
+            }
+        }
+
+        [HttpPost("saveauctionitem")]
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        public ActionResult SaveAuctionItem(SaveAuctionItemRequest saveAuctionItemRequest) {
+            try {
+                var sharedSecretString = User.FindFirst("sharedSecret")?.Value;
+                if (sharedSecretString == null || sharedSecretString != anyMMOWebServerSettings.SharedSecret) {
+                    return Unauthorized("invalid shared secret");
+                }
+
+                var success = auctionItemService.SaveAuctionItem(saveAuctionItemRequest);
+                if (!success) {
+                    return BadRequest();
+                }
+                return Ok();
+            } catch (Exception e) {
+                logger.LogError(e.ToString());
+                return BadRequest("Error occured on server.  See server logs for more details.");
+            }
+        }
+
+        [HttpPost("deleteauctionitem")]
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        public ActionResult DeleteAuctionItem(DeleteAuctionItemRequest deleteAuctionItemRequest) {
+            try {
+                var sharedSecretString = User.FindFirst("sharedSecret")?.Value;
+                if (sharedSecretString == null || sharedSecretString != anyMMOWebServerSettings.SharedSecret) {
+                    return Unauthorized("invalid shared secret");
+                }
+
+                var success = auctionItemService.DeleteAuctionItem(deleteAuctionItemRequest);
+                if (!success) {
+                    return BadRequest();
+                }
+                return Ok();
+            } catch (Exception e) {
+                logger.LogError(e.ToString());
+                return BadRequest("Error occured on server.  See server logs for more details.");
+            }
+        }
+
+        [HttpPost("getauctionitems")]
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        public ActionResult GetAuctionItems() {
+            try {
+                var sharedSecretString = User.FindFirst("sharedSecret")?.Value;
+                if (sharedSecretString == null || sharedSecretString != anyMMOWebServerSettings.SharedSecret) {
+                    return Unauthorized("invalid shared secret");
+                }
+
+                AuctionItemListResponse auctionItemListResponse = auctionItemService.GetAuctionItems();
+                return Ok(auctionItemListResponse);
+            } catch (Exception e) {
+                logger.LogError(e.ToString());
+                return BadRequest("Error occured on server.  See server logs for more details.");
+            }
+        }
+
+        // *******************************************************************
+        // ITEM INSTANCE
+        // *******************************************************************
+
+        [HttpPost("createiteminstance")]
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        public ActionResult CreateItemInstance(CreateItemInstanceRequest createItemInstanceRequest) {
+            try {
+                var sharedSecretString = User.FindFirst("sharedSecret")?.Value;
+                if (sharedSecretString == null || sharedSecretString != anyMMOWebServerSettings.SharedSecret) {
+                    return Unauthorized("invalid shared secret");
+                }
+
+                // add new itemInstance
+                (bool success, ItemInstance itemInstance) = itemInstanceService.AddItemInstance(createItemInstanceRequest);
+                if (!success) {
+                    return BadRequest();
+                }
+                return Ok(new CreateItemInstanceResponse() { Id = itemInstance.Id });
+            } catch (Exception e) {
+                logger.LogError(e.ToString());
+                return BadRequest("Error occured on server.  See server logs for more details.");
+            }
+        }
+
+        [HttpPost("saveiteminstance")]
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        public ActionResult SaveItemInstance(SaveItemInstanceRequest saveItemInstanceRequest) {
+            try {
+                var sharedSecretString = User.FindFirst("sharedSecret")?.Value;
+                if (sharedSecretString == null || sharedSecretString != anyMMOWebServerSettings.SharedSecret) {
+                    return Unauthorized("invalid shared secret");
+                }
+
+                var success = itemInstanceService.SaveItemInstance(saveItemInstanceRequest);
+                if (!success) {
+                    return BadRequest();
+                }
+                return Ok();
+            } catch (Exception e) {
+                logger.LogError(e.ToString());
+                return BadRequest("Error occured on server.  See server logs for more details.");
+            }
+        }
+
+        [HttpPost("deleteiteminstance")]
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        public ActionResult DeleteItemInstance(DeleteItemInstanceRequest deleteItemInstanceRequest) {
+            try {
+                var sharedSecretString = User.FindFirst("sharedSecret")?.Value;
+                if (sharedSecretString == null || sharedSecretString != anyMMOWebServerSettings.SharedSecret) {
+                    return Unauthorized("invalid shared secret");
+                }
+
+                var success = itemInstanceService.DeleteItemInstance(deleteItemInstanceRequest);
+                if (!success) {
+                    return BadRequest();
+                }
+                return Ok();
+            } catch (Exception e) {
+                logger.LogError(e.ToString());
+                return BadRequest("Error occured on server.  See server logs for more details.");
+            }
+        }
+
+        [HttpPost("getiteminstances")]
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        public ActionResult GetItemInstances() {
+            try {
+                var sharedSecretString = User.FindFirst("sharedSecret")?.Value;
+                if (sharedSecretString == null || sharedSecretString != anyMMOWebServerSettings.SharedSecret) {
+                    return Unauthorized("invalid shared secret");
+                }
+
+                ItemInstanceListResponse itemInstanceListResponse = itemInstanceService.GetItemInstances();
+                return Ok(itemInstanceListResponse);
+            } catch (Exception e) {
+                logger.LogError(e.ToString());
+                return BadRequest("Error occured on server.  See server logs for more details.");
+            }
+        }
+
+        // *******************************************************************
+        // MAIL MESSAGE
+        // *******************************************************************
+
+        [HttpPost("createmailmessage")]
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        public ActionResult CreateMailMessage(CreateMailMessageRequest createMailMessageRequest) {
+            try {
+                var sharedSecretString = User.FindFirst("sharedSecret")?.Value;
+                if (sharedSecretString == null || sharedSecretString != anyMMOWebServerSettings.SharedSecret) {
+                    return Unauthorized("invalid shared secret");
+                }
+
+                (bool success, MailMessage mailMessage) = mailMessageService.AddMailMessage(createMailMessageRequest);
+                if (!success) {
+                    return BadRequest();
+                }
+                return Ok(new CreateMailMessageResponse() { Id = mailMessage.Id });
+            } catch (Exception e) {
+                logger.LogError(e.ToString());
+                return BadRequest("Error occured on server.  See server logs for more details.");
+            }
+        }
+
+        [HttpPost("savemailmessage")]
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        public ActionResult SaveMailMessage(SaveMailMessageRequest saveMailMessageRequest) {
+            try {
+                var sharedSecretString = User.FindFirst("sharedSecret")?.Value;
+                if (sharedSecretString == null || sharedSecretString != anyMMOWebServerSettings.SharedSecret) {
+                    return Unauthorized("invalid shared secret");
+                }
+
+                var success = mailMessageService.SaveMailMessage(saveMailMessageRequest);
+                if (!success) {
+                    return BadRequest();
+                }
+                return Ok();
+            } catch (Exception e) {
+                logger.LogError(e.ToString());
+                return BadRequest("Error occured on server.  See server logs for more details.");
+            }
+        }
+
+        [HttpPost("deletemailmessage")]
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        public ActionResult DeleteMailMessage(DeleteMailMessageRequest deleteMailMessageRequest) {
+            try {
+                var sharedSecretString = User.FindFirst("sharedSecret")?.Value;
+                if (sharedSecretString == null || sharedSecretString != anyMMOWebServerSettings.SharedSecret) {
+                    return Unauthorized("invalid shared secret");
+                }
+
+                var success = mailMessageService.DeleteMailMessage(deleteMailMessageRequest);
+                if (!success) {
+                    return BadRequest();
+                }
+                return Ok();
+            } catch (Exception e) {
+                logger.LogError(e.ToString());
+                return BadRequest("Error occured on server.  See server logs for more details.");
+            }
+        }
+
+        [HttpPost("getmailmessages")]
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        public ActionResult GetMailMessages(int playerCharacterId) {
+            try {
+                var sharedSecretString = User.FindFirst("sharedSecret")?.Value;
+                if (sharedSecretString == null || sharedSecretString != anyMMOWebServerSettings.SharedSecret) {
+                    return Unauthorized("invalid shared secret");
+                }
+
+                MailMessageListResponse mailMessageListResponse = mailMessageService.GetMailMessages(playerCharacterId);
+                return Ok(mailMessageListResponse);
+            } catch (Exception e) {
+                logger.LogError(e.ToString());
+                return BadRequest("Error occured on server.  See server logs for more details.");
+            }
+        }
+
 
         // GET: Account/logout
         /*

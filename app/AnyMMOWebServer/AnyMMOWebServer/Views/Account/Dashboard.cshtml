@@ -1,13 +1,66 @@
-﻿@{
+﻿@using AnyMMOWebServer.Models
+@{
     ViewData["Title"] = "Dashboard";
+    var players = ViewBag.PlayerCharacters as List<PlayerCharacter> ?? new List<PlayerCharacter>();
 }
 
-<h1>Account Dashboard</h1>
+<div class="container mt-4 d-flex flex-column" style="min-height: 80vh;">
 
-<div>
-    This is your dashboard, @ViewData["UserName"]
-    <br />
-    Your UserId is @ViewData["UserId"]
-    <hr />
-    <a asp-action="Logout" class="btn btn-primary">Logout</a>
+    @if (TempData["SuccessMessage"] != null) {
+        <div class="alert alert-success alert-dismissible fade show shadow-sm mb-4" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i>
+            @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <!-- Top Header Row -->
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <h1 class="display-4">Account Dashboard</h1>
+
+        <!-- Manage Account Box -->
+        <div class="card shadow-sm" style="min-width: 220px;">
+            <div class="card-header bg-light py-1">
+                <small class="fw-bold text-uppercase text-muted" style="font-size: 0.75rem;">Account Settings</small>
+            </div>
+            <div class="card-body p-2">
+                <div class="d-grid gap-2">
+                    <a asp-action="Edit" class="btn btn-sm btn-outline-secondary text-start">
+                        <i class="bi bi-person-gear me-2"></i>Edit Details
+                    </a>
+                    <a asp-action="ChangePassword" class="btn btn-sm btn-outline-primary text-start">
+                        <i class="bi bi-shield-lock me-2"></i>Change Password
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Info Card -->
+    <div class="card mb-4 shadow-sm border-start border-primary border-4">
+        <div class="card-body">
+            <p class="lead mb-0">Welcome back, <strong>@ViewData["UserName"]</strong>!</p>
+        </div>
+    </div>
+
+    <!-- Players List -->
+    <h3 class="h5 text-muted">Your Characters</h3>
+    <ul class="list-group shadow-sm mb-4">
+        @if (!players.Any()) {
+            <li class="list-group-item text-center text-muted">No characters found.</li>
+        }
+        @foreach (var player in players) {
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <span>@player.Name</span>
+            </li>
+        }
+    </ul>
+
+    <!-- Footer Logout -->
+    <div class="mt-auto pt-5">
+        <hr />
+        <div class="d-grid d-md-block">
+            <a asp-action="Logout" class="btn btn-danger px-4">Logout</a>
+        </div>
+    </div>
 </div>

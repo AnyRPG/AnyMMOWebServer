@@ -22,12 +22,8 @@ namespace AnyMMOWebServer.Models
         public AuthenticationRequest(IFormCollection collection)
         {
             // put form into variables
-            if (collection != null) {
-                if (collection.ContainsKey("username")) {
-                    UserName = collection["username"];
-                }
-                Password = collection["password"];
-            }
+            UserName = collection["username"].ToString();
+            Password = collection["password"].ToString();
         }
 
     }

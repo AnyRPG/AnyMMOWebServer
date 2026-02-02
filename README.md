@@ -46,7 +46,7 @@ Look at the new file in the Migrations folder in visual studio and check the cod
 
 ## Docker Setup
 
-Build the image
+Build the image from the project root folder
 
 `docker build -t anymmo-webserver .`
 
@@ -62,7 +62,7 @@ Or as a daemon
 
 If you are running the service locally, you will need to run the nginx container with the self signed certificate, as Unity will not allow insecure (http) connections by default.
 
-Build the image
+Build the image from the project root folder
 
 `docker build -t anymmo-nginx anymmo-nginx`
 

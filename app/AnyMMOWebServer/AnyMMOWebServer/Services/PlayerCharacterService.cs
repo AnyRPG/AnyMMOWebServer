@@ -17,8 +17,16 @@ namespace AnyMMOWebServer.Services
 
         public bool AddPlayerCharacter(PlayerCharacter playerCharacter)
         {
-            //dbContext.Add(user);
+
+            if (dbContext.PlayerCharacters.Any(u => u.Name == playerCharacter.Name)) {
+                // player with this name already exists
+                return false;
+            }
+
             dbContext.PlayerCharacters.Add(playerCharacter);
+            dbContext.SaveChanges();
+
+            dbContext.FriendLists.Add(new FriendList() { PlayerCharacterId = playerCharacter.Id});
             dbContext.SaveChanges();
 
             logger.LogInformation($"Added Player Character {playerCharacter.Name} with Id {playerCharacter.Id}");
@@ -26,23 +34,25 @@ namespace AnyMMOWebServer.Services
             return true;
         }
 
-        public bool AddPlayerCharacter(int userId, CreateCharacterRequest createCharacterRequest)
+        public (bool, PlayerCharacter) AddPlayerCharacter(CreateCharacterRequest createCharacterRequest)
         {
 
             // add player character
             PlayerCharacter playerCharacter = new PlayerCharacter()
             {
-                AccountId = userId,
+                AccountId = createCharacterRequest.AccountId,
                 Name = createCharacterRequest.Name,
                 SaveData = createCharacterRequest.SaveData
             };
 
-            return AddPlayerCharacter(playerCharacter);
+            return (AddPlayerCharacter(playerCharacter), playerCharacter);
         }
 
-        public bool SavePlayerCharacter(int userId, SaveCharacterRequest saveCharacterRequest)
+        public bool SavePlayerCharacter(SaveCharacterRequest saveCharacterRequest)
         {
-            var playerCharacter = dbContext.PlayerCharacters.First(u => u.AccountId == userId && u.Id == saveCharacterRequest.Id);
+            logger.LogDebug($"Saving player character with Id: {saveCharacterRequest.Id}");
+
+            var playerCharacter = dbContext.PlayerCharacters.First(u => u.Id == saveCharacterRequest.Id);
             if (playerCharacter.Name != saveCharacterRequest.Name)
             {
                 playerCharacter.Name = saveCharacterRequest.Name;
@@ -53,10 +63,16 @@ namespace AnyMMOWebServer.Services
             return true;
         }
 
-        public bool DeletePlayerCharacter(int userId, DeleteCharacterRequest deleteCharacterRequest)
+        public bool DeletePlayerCharacter(DeleteCharacterRequest deleteCharacterRequest)
         {
-            var playerCharacter = dbContext.PlayerCharacters.First(u => u.AccountId == userId && u.Id == deleteCharacterRequest.Id);
+            logger.LogInformation($"Deleting player character with Id: {deleteCharacterRequest.Id}");
+
+            var playerCharacter = dbContext.PlayerCharacters.First(u => u.Id == deleteCharacterRequest.Id);
             dbContext.PlayerCharacters.Remove(playerCharacter);
+            dbContext.SaveChanges();
+
+            var friendList = dbContext.FriendLists.First(u => u.PlayerCharacterId == deleteCharacterRequest.Id);
+            dbContext.FriendLists.Remove(friendList);
             dbContext.SaveChanges();
 
             return true;
@@ -64,6 +80,8 @@ namespace AnyMMOWebServer.Services
 
         public PlayerCharacterListResponse GetPlayerCharacters(int userId)
         {
+            logger.LogInformation($"Loading player character list for account {userId}");
+
             PlayerCharacterListResponse playerCharacterListResponse = new PlayerCharacterListResponse()
             {
                 PlayerCharacters = dbContext.PlayerCharacters.Where(u => u.AccountId == userId).ToList()
@@ -72,7 +90,17 @@ namespace AnyMMOWebServer.Services
             return playerCharacterListResponse;
         }
 
+        public PlayerCharacterListResponse GetAllPlayerCharacters() {
+            logger.LogInformation($"Loading all player characters");
+
+            PlayerCharacterListResponse playerCharacterListResponse = new PlayerCharacterListResponse() {
+                PlayerCharacters = dbContext.PlayerCharacters.ToList()
+            };
+
+            return playerCharacterListResponse;
+        }
+
     }
 
-    
+
 }
