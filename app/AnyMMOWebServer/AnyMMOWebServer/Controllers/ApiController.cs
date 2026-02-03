@@ -27,17 +27,25 @@ namespace AnyMMOWebServer.Controllers
         private readonly ILogger<ApiController> logger;
         private readonly AnyMMOWebServer.Services.IAuthenticationService authenticationService;
         private readonly AnyMMOWebServerSettings anyMMOWebServerSettings;
+        private readonly IHttpContextAccessor _httpContextAccessor;
 
-        public ApiController(ILogger<ApiController> logger, GameDbContext dbContext, AnyMMOWebServerSettings anyMMOWebServerSettings, AnyMMOWebServer.Services.IAuthenticationService authenticationService)
+
+        public ApiController(
+            ILogger<ApiController> logger,
+            GameDbContext dbContext,
+            AnyMMOWebServerSettings anyMMOWebServerSettings,
+            AnyMMOWebServer.Services.IAuthenticationService authenticationService,
+            IHttpContextAccessor httpContextAccessor)
         {
             this.dbContext = dbContext;
+            this._httpContextAccessor = httpContextAccessor;
             this.anyMMOWebServerSettings = anyMMOWebServerSettings;
-            playerCharacterService = new PlayerCharacterService(dbContext, logger);
-            guildService = new GuildService(dbContext, logger);
-            friendListService = new FriendListService(dbContext, logger);
-            auctionItemService = new AuctionItemService(dbContext, logger);
-            itemInstanceService = new ItemInstanceService(dbContext, logger);
-            mailMessageService = new MailMessageService(dbContext, logger);
+            playerCharacterService = new PlayerCharacterService(dbContext, logger, httpContextAccessor);
+            guildService = new GuildService(dbContext, logger, httpContextAccessor);
+            friendListService = new FriendListService(dbContext, logger, httpContextAccessor);
+            auctionItemService = new AuctionItemService(dbContext, logger, httpContextAccessor);
+            itemInstanceService = new ItemInstanceService(dbContext, logger, httpContextAccessor);
+            mailMessageService = new MailMessageService(dbContext, logger, httpContextAccessor);
             this.authenticationService = authenticationService;
             //authenticationService = new AnyMMOWebServer.Services.AuthenticationService(anyMMOWebServerSettings, dbContext, logger);
             this.logger = logger;
@@ -48,7 +56,7 @@ namespace AnyMMOWebServer.Controllers
         {
             try
             {
-                var (success, content) = authenticationService.Login(authenticationRequest, HttpContext);
+                var (success, content) = authenticationService.Login(authenticationRequest);
                 if (!success)
                 {
                     return Unauthorized(content);
@@ -64,7 +72,7 @@ namespace AnyMMOWebServer.Controllers
         [HttpPost("serverlogin")]
         public ActionResult ServerLogin(ServerAuthenticationRequest authenticationRequest) {
             try {
-                var (success, content) = authenticationService.ServerLogin(authenticationRequest, HttpContext);
+                var (success, content) = authenticationService.ServerLogin(authenticationRequest);
                 if (!success) {
                     return BadRequest(content);
                 }
@@ -533,7 +541,7 @@ namespace AnyMMOWebServer.Controllers
 
                 var success = mailMessageService.DeleteMailMessage(deleteMailMessageRequest);
                 if (!success) {
-                    return BadRequest();
+                    return BadRequest("Delete mail message failed.  Message not found.");
                 }
                 return Ok();
             } catch (Exception e) {
@@ -544,15 +552,35 @@ namespace AnyMMOWebServer.Controllers
 
         [HttpPost("getmailmessages")]
         [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
-        public ActionResult GetMailMessages(int playerCharacterId) {
+        public ActionResult GetMailMessages(LoadMailMessagesRequest loadMailMessagesRequest) {
             try {
                 var sharedSecretString = User.FindFirst("sharedSecret")?.Value;
                 if (sharedSecretString == null || sharedSecretString != anyMMOWebServerSettings.SharedSecret) {
                     return Unauthorized("invalid shared secret");
                 }
 
-                MailMessageListResponse mailMessageListResponse = mailMessageService.GetMailMessages(playerCharacterId);
+                MailMessageListResponse mailMessageListResponse = mailMessageService.GetMailMessages(loadMailMessagesRequest.PlayerCharacterId);
                 return Ok(mailMessageListResponse);
+            } catch (Exception e) {
+                logger.LogError(e.ToString());
+                return BadRequest("Error occured on server.  See server logs for more details.");
+            }
+        }
+
+        [HttpPost("getmailmessage")]
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        public ActionResult GetMailMessage(LoadMailMessageRequest loadMailMessageRequest) {
+            try {
+                var sharedSecretString = User.FindFirst("sharedSecret")?.Value;
+                if (sharedSecretString == null || sharedSecretString != anyMMOWebServerSettings.SharedSecret) {
+                    return Unauthorized("invalid shared secret");
+                }
+
+                MailMessage? mailMessage = mailMessageService.GetMailMessage(loadMailMessageRequest.MessageId);
+                if (mailMessage == null) {
+                    return BadRequest("Mail message not found.");
+                }
+                return Ok(mailMessage);
             } catch (Exception e) {
                 logger.LogError(e.ToString());
                 return BadRequest("Error occured on server.  See server logs for more details.");

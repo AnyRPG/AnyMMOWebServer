@@ -8,11 +8,13 @@ namespace AnyMMOWebServer.Services
     {
         private GameDbContext dbContext;
         private ILogger logger;
+        private IHttpContextAccessor httpContextAccessor;
 
-        public GuildService(GameDbContext dbContext, ILogger logger)
+        public GuildService(GameDbContext dbContext, ILogger logger, IHttpContextAccessor httpContextAccessor)
         {
             this.dbContext = dbContext;
             this.logger = logger;
+            this.httpContextAccessor = httpContextAccessor;
         }
 
         public bool AddGuild(Guild guild)
@@ -21,14 +23,14 @@ namespace AnyMMOWebServer.Services
             dbContext.Guilds.Add(guild);
             dbContext.SaveChanges();
 
-            logger.LogInformation($"Added Guild with Id {guild.Id}");
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] Added Guild with Id {guild.Id}");
 
             return true;
         }
 
         public (bool, Guild) AddGuild(CreateGuildRequest createGuildRequest)
         {
-            logger.LogInformation($"Adding new guild");
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] Adding new guild");
 
             Guild guild = new Guild()
             {
@@ -40,7 +42,7 @@ namespace AnyMMOWebServer.Services
 
         public bool SaveGuild(SaveGuildRequest saveGuildRequest)
         {
-            logger.LogInformation($"Saving guild with Id: {saveGuildRequest.Id}");
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] Saving guild with Id: {saveGuildRequest.Id}");
 
             var guild = dbContext.Guilds.First(u => u.Id == saveGuildRequest.Id);
             guild.SaveData = saveGuildRequest.SaveData;
@@ -51,7 +53,7 @@ namespace AnyMMOWebServer.Services
 
         public bool DeleteGuild(DeleteGuildRequest deleteGuildRequest)
         {
-            logger.LogInformation($"Deleting guild with Id: {deleteGuildRequest.Id}");
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] Deleting guild with Id: {deleteGuildRequest.Id}");
 
             var guild = dbContext.Guilds.First(u => u.Id == deleteGuildRequest.Id);
             dbContext.Guilds.Remove(guild);
@@ -62,7 +64,7 @@ namespace AnyMMOWebServer.Services
 
         public GuildListResponse GetGuilds()
         {
-            logger.LogInformation($"Getting list of guilds");
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] Getting list of guilds");
 
             GuildListResponse guildListResponse = new GuildListResponse()
             {

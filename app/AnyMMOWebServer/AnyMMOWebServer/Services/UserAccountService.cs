@@ -8,11 +8,13 @@ namespace AnyMMOWebServer.Services
     {
         private GameDbContext dbContext;
         private ILogger logger;
+        private IHttpContextAccessor httpContextAccessor;
 
-        public UserAccountService(GameDbContext dbContext, ILogger logger)
+        public UserAccountService(GameDbContext dbContext, ILogger logger, IHttpContextAccessor httpContextAccessor)
         {
             this.dbContext = dbContext;
             this.logger = logger;
+            this.httpContextAccessor = httpContextAccessor;
         }
 
         public bool AddUser(User user)
@@ -21,7 +23,7 @@ namespace AnyMMOWebServer.Services
             dbContext.Users.Add(user);
             dbContext.SaveChanges();
 
-            logger.LogInformation($"Added user {user.UserName} with Id {user.Id}");
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] Added user {user.UserName} with Id {user.Id}");
 
             return true;
         }

@@ -2,6 +2,7 @@
 using AnyMMOWebServer.Models;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Http;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
@@ -16,12 +17,19 @@ namespace AnyMMOWebServer.Services
         private readonly AnyMMOWebServerSettings anyMMOWebServerSettings;
         private readonly GameDbContext gameDbContext;
         private readonly ILogger<AuthenticationService> logger;
+        private readonly IHttpContextAccessor httpContextAccessor;
 
-        public AuthenticationService(AnyMMOWebServerSettings anyMMOWebServerSettings, GameDbContext gameDbContext, ILogger<AuthenticationService> logger)
+
+		public AuthenticationService(
+            AnyMMOWebServerSettings anyMMOWebServerSettings,
+            GameDbContext gameDbContext,
+            ILogger<AuthenticationService> logger,
+            IHttpContextAccessor httpContextAccessor)
         {
             this.anyMMOWebServerSettings = anyMMOWebServerSettings;
             this.gameDbContext = gameDbContext;
             this.logger = logger;
+            this.httpContextAccessor = httpContextAccessor;
         }
 
         public (bool success, string content) AddUserFromForm(IFormCollection collection)
@@ -50,7 +58,7 @@ namespace AnyMMOWebServer.Services
             // check if username is not taken
             if (gameDbContext.Users.Any(u => u.UserName == user.UserName))
             {
-                logger.LogInformation($"Username {user.UserName} was not available during registration attempt");
+                logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] Username {user.UserName} was not available during registration attempt");
                 return (false, "Username not available");
             }
             
@@ -59,61 +67,61 @@ namespace AnyMMOWebServer.Services
 
             gameDbContext.Add(user);
             gameDbContext.SaveChanges();
-            logger.LogInformation($"Registered new user {user.UserName}");
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] Registered new user {user.UserName}");
 
             return (true, "");
 
         }
 
-        public (bool success, AuthenticationResponse? authenticationResponse) Login(AuthenticationRequest authenticationRequest, HttpContext httpContext)
+        public (bool success, AuthenticationResponse? authenticationResponse) Login(AuthenticationRequest authenticationRequest)
         {
-            IPAddress? remoteIpAddress = httpContext.Connection.RemoteIpAddress;
-            string ipAddress = remoteIpAddress != null ? remoteIpAddress.ToString() : "Unknown";
             var user = gameDbContext.Users.SingleOrDefault(u => u.UserName == authenticationRequest.UserName);
             if (user == null)
             {
-                logger.LogInformation($"[LOGIN] invalid username {authenticationRequest.UserName} from IP {ipAddress}");
+                logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] [LOGIN] invalid username {authenticationRequest.UserName}");
                 return (false, null);
             }
 
             if (user.PasswordHash != AuthenticationHelpers.ComputeHash(authenticationRequest.Password, user.Salt))
             {
-                logger.LogInformation($"[LOGIN] invalid password for user {authenticationRequest.UserName} from IP {ipAddress}");
+                logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] [LOGIN] invalid password for user {authenticationRequest.UserName}");
                 return (false, null);
             }
 
-            var task = CookieLogin(user, httpContext);
+            var task = CookieLogin(user);
             task.Wait();
 
-            logger.LogInformation($"[LOGIN] Successfully logged in user {authenticationRequest.UserName} from IP {ipAddress}");
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] [LOGIN] Successfully logged in user {authenticationRequest.UserName}");
             AuthenticationResponse _authenticationResponse = new AuthenticationResponse() { AccountId = user.Id };
             _authenticationResponse.Token = GenerateJwtToken(AssembleClaimsIdentity(user));
             return (true, _authenticationResponse);
         }
 
-        public (bool success, string token) ServerLogin(ServerAuthenticationRequest authenticationRequest, HttpContext httpContext) {
+        public (bool success, string token) ServerLogin(ServerAuthenticationRequest authenticationRequest) {
 
-            IPAddress? remoteIpAddress = httpContext.Connection.RemoteIpAddress;
+            IPAddress? remoteIpAddress = httpContextAccessor.HttpContext?.Connection.RemoteIpAddress;
             string ipAddress = remoteIpAddress != null ? remoteIpAddress.ToString() : "Unknown";
 
             if (authenticationRequest.SharedSecret != anyMMOWebServerSettings.SharedSecret) {
-                logger.LogInformation($"[LOGIN] invalid shared secret for server from IP {ipAddress}");
+                logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] [LOGIN] invalid shared secret for server");
                 return (false, "Invalid password");
             }
 
-            logger.LogInformation($"[LOGIN] Successfully logged in server from IP {ipAddress}");
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] [LOGIN] Successfully logged in server");
 
             return (true, GenerateJwtToken(AssembleClaimsIdentity(authenticationRequest.SharedSecret)));
         }
 
-        public void Logout(HttpContext httpContext)
+        public void Logout()
         {
-            var task = httpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-            task.Wait();
-            logger.LogInformation($"[LOGOUT] Logged out user");
+			if (httpContextAccessor.HttpContext != null) {
+				var task = httpContextAccessor.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+				task.Wait();
+			}
+			logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] [LOGOUT] Logged out user");
         }
 
-        private async Task CookieLogin(User user, HttpContext httpContext)
+        private async Task CookieLogin(User user)
         {
             var claims = new List<Claim>
                 {
@@ -122,7 +130,9 @@ namespace AnyMMOWebServer.Services
                 };
             var claimsIdentity = new ClaimsIdentity(claims, "Login");
 
-            await httpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(claimsIdentity));
+            if (httpContextAccessor.HttpContext != null) {
+                await httpContextAccessor.HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(claimsIdentity));
+            }
         }
 
         private ClaimsIdentity AssembleClaimsIdentity(User user)
@@ -165,7 +175,7 @@ namespace AnyMMOWebServer.Services
             // 1. Verify old password using your existing ComputeHash logic
             string hashedOldPassword = AuthenticationHelpers.ComputeHash(oldPassword, user.Salt);
             if (user.PasswordHash != hashedOldPassword) {
-                logger.LogInformation($"[PASSWORD CHANGE] Failed for user {user.UserName}: Incorrect old password.");
+                logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] [PASSWORD CHANGE] Failed for user {user.UserName}: Incorrect old password.");
                 return (false, "Current password is incorrect.");
             }
 
@@ -177,7 +187,7 @@ namespace AnyMMOWebServer.Services
             gameDbContext.Update(user);
             gameDbContext.SaveChanges();
 
-            logger.LogInformation($"[PASSWORD CHANGE] Success for user {user.UserName}");
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] [PASSWORD CHANGE] Success for user {user.UserName}");
             return (true, string.Empty);
         }
 
@@ -189,10 +199,10 @@ namespace AnyMMOWebServer.Services
     public interface IAuthenticationService
     {
         (bool success, string content) Register(User user);
-        (bool success, AuthenticationResponse? authenticationResponse) Login(AuthenticationRequest authenticationRequest, HttpContext httpContext);
-        (bool success, string token) ServerLogin(ServerAuthenticationRequest authenticationRequest, HttpContext httpContext);
+        (bool success, AuthenticationResponse? authenticationResponse) Login(AuthenticationRequest authenticationRequest);
+        (bool success, string token) ServerLogin(ServerAuthenticationRequest authenticationRequest);
         (bool success, string content) AddUserFromForm(IFormCollection collection);
-        void Logout(HttpContext httpContext);
+        void Logout();
         (bool success, string errorMessage) ChangePassword(int userId, string oldPassword, string newPassword);
     }
 

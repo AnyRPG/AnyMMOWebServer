@@ -8,11 +8,14 @@ namespace AnyMMOWebServer.Services
     {
         private GameDbContext dbContext;
         private ILogger logger;
+        private IHttpContextAccessor httpContextAccessor;
 
-        public AuctionItemService(GameDbContext dbContext, ILogger logger)
+
+		public AuctionItemService(GameDbContext dbContext, ILogger logger, IHttpContextAccessor httpContextAccessor)
         {
             this.dbContext = dbContext;
             this.logger = logger;
+            this.httpContextAccessor = httpContextAccessor;
         }
 
         public bool AddAuctionItem(AuctionItem auctionItem)
@@ -20,14 +23,14 @@ namespace AnyMMOWebServer.Services
             dbContext.AuctionItems.Add(auctionItem);
             dbContext.SaveChanges();
 
-            logger.LogInformation($"Added Auction Item with Id {auctionItem.Id}");
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] Added Auction Item with Id {auctionItem.Id}");
 
             return true;
         }
 
         public (bool, AuctionItem) AddAuctionItem(CreateAuctionItemRequest createAuctionItemRequest)
         {
-            logger.LogInformation($"Adding new auction item");
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] Adding new auction item");
 
             AuctionItem auctionItem = new AuctionItem()
             {
@@ -39,7 +42,7 @@ namespace AnyMMOWebServer.Services
 
         public bool SaveAuctionItem(SaveAuctionItemRequest saveAuctionItemRequest)
         {
-            logger.LogInformation($"Saving auction item with Id: {saveAuctionItemRequest.Id}");
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] Saving auction item with Id: {saveAuctionItemRequest.Id}");
 
             var auctionItem = dbContext.AuctionItems.First(u => u.Id == saveAuctionItemRequest.Id);
             auctionItem.SaveData = saveAuctionItemRequest.SaveData;
@@ -50,7 +53,7 @@ namespace AnyMMOWebServer.Services
 
         public bool DeleteAuctionItem(DeleteAuctionItemRequest deleteAuctionItemRequest)
         {
-            logger.LogInformation($"Deleting auction item with Id: {deleteAuctionItemRequest.Id}");
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] Deleting auction item with Id: {deleteAuctionItemRequest.Id}");
 
             var auctionItem = dbContext.AuctionItems.First(u => u.Id == deleteAuctionItemRequest.Id);
             dbContext.AuctionItems.Remove(auctionItem);
@@ -61,7 +64,7 @@ namespace AnyMMOWebServer.Services
 
         public AuctionItemListResponse GetAuctionItems()
         {
-            logger.LogInformation($"Loading all auction items");
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] Loading all auction items");
 
             AuctionItemListResponse auctionItemListResponse = new AuctionItemListResponse()
             {

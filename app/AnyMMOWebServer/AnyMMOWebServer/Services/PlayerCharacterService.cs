@@ -1,5 +1,6 @@
 ﻿using AnyMMOWebServer.Database;
 using AnyMMOWebServer.Models;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 namespace AnyMMOWebServer.Services
@@ -8,11 +9,13 @@ namespace AnyMMOWebServer.Services
     {
         private GameDbContext dbContext;
         private ILogger logger;
+        private IHttpContextAccessor httpContextAccessor;
 
-        public PlayerCharacterService(GameDbContext dbContext, ILogger logger)
+        public PlayerCharacterService(GameDbContext dbContext, ILogger logger, IHttpContextAccessor httpContextAccessor)
         {
             this.dbContext = dbContext;
             this.logger = logger;
+            this.httpContextAccessor = httpContextAccessor;
         }
 
         public bool AddPlayerCharacter(PlayerCharacter playerCharacter)
@@ -29,7 +32,7 @@ namespace AnyMMOWebServer.Services
             dbContext.FriendLists.Add(new FriendList() { PlayerCharacterId = playerCharacter.Id});
             dbContext.SaveChanges();
 
-            logger.LogInformation($"Added Player Character {playerCharacter.Name} with Id {playerCharacter.Id}");
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] Added Player Character {playerCharacter.Name} with Id {playerCharacter.Id}");
 
             return true;
         }
@@ -65,7 +68,7 @@ namespace AnyMMOWebServer.Services
 
         public bool DeletePlayerCharacter(DeleteCharacterRequest deleteCharacterRequest)
         {
-            logger.LogInformation($"Deleting player character with Id: {deleteCharacterRequest.Id}");
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] Deleting player character with Id: {deleteCharacterRequest.Id}");
 
             var playerCharacter = dbContext.PlayerCharacters.First(u => u.Id == deleteCharacterRequest.Id);
             dbContext.PlayerCharacters.Remove(playerCharacter);
@@ -80,7 +83,7 @@ namespace AnyMMOWebServer.Services
 
         public PlayerCharacterListResponse GetPlayerCharacters(int userId)
         {
-            logger.LogInformation($"Loading player character list for account {userId}");
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] Loading player character list for account {userId}");
 
             PlayerCharacterListResponse playerCharacterListResponse = new PlayerCharacterListResponse()
             {
@@ -91,7 +94,7 @@ namespace AnyMMOWebServer.Services
         }
 
         public PlayerCharacterListResponse GetAllPlayerCharacters() {
-            logger.LogInformation($"Loading all player characters");
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] Loading all player characters");
 
             PlayerCharacterListResponse playerCharacterListResponse = new PlayerCharacterListResponse() {
                 PlayerCharacters = dbContext.PlayerCharacters.ToList()

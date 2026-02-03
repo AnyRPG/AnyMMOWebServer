@@ -8,11 +8,14 @@ namespace AnyMMOWebServer.Services
     {
         private GameDbContext dbContext;
         private ILogger logger;
+        private IHttpContextAccessor httpContextAccessor;
 
-        public ItemInstanceService(GameDbContext dbContext, ILogger logger)
+
+		public ItemInstanceService(GameDbContext dbContext, ILogger logger, IHttpContextAccessor httpContextAccessor)
         {
             this.dbContext = dbContext;
             this.logger = logger;
+            this.httpContextAccessor = httpContextAccessor;
         }
 
         public bool AddItemInstance(ItemInstance itemInstance)
@@ -20,14 +23,14 @@ namespace AnyMMOWebServer.Services
             dbContext.ItemInstances.Add(itemInstance);
             dbContext.SaveChanges();
 
-            logger.LogInformation($"Added ItemInstance with Id {itemInstance.Id}");
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] Added ItemInstance with Id {itemInstance.Id}");
 
             return true;
         }
 
         public (bool, ItemInstance) AddItemInstance(CreateItemInstanceRequest createItemInstanceRequest)
         {
-            logger.LogInformation($"Adding item instance with ItemInstanceId: {createItemInstanceRequest.ItemInstanceId}");
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] Adding item instance with ItemInstanceId: {createItemInstanceRequest.ItemInstanceId}");
 
             ItemInstance itemInstance = new ItemInstance() {
                 ItemInstanceId = createItemInstanceRequest.ItemInstanceId,
@@ -39,7 +42,7 @@ namespace AnyMMOWebServer.Services
 
         public bool SaveItemInstance(SaveItemInstanceRequest saveItemInstanceRequest)
         {
-            logger.LogInformation($"Saving item instance with Id: {saveItemInstanceRequest.ItemInstanceId}");
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] Saving item instance with Id: {saveItemInstanceRequest.ItemInstanceId}");
 
             var itemInstance = dbContext.ItemInstances.First(u => u.ItemInstanceId == saveItemInstanceRequest.ItemInstanceId);
             itemInstance.SaveData = saveItemInstanceRequest.SaveData;
@@ -50,7 +53,7 @@ namespace AnyMMOWebServer.Services
 
         public bool DeleteItemInstance(DeleteItemInstanceRequest deleteItemInstanceRequest)
         {
-            logger.LogInformation($"Deleting item instance with Id: {deleteItemInstanceRequest.ItemInstanceId}");
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] Deleting item instance with Id: {deleteItemInstanceRequest.ItemInstanceId}");
 
             var itemInstance = dbContext.ItemInstances.First(u => u.ItemInstanceId == deleteItemInstanceRequest.ItemInstanceId);
             dbContext.ItemInstances.Remove(itemInstance);
@@ -61,7 +64,7 @@ namespace AnyMMOWebServer.Services
 
         public ItemInstanceListResponse GetItemInstances()
         {
-            logger.LogInformation($"Getting list of item instances");
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] Getting list of item instances");
 
             ItemInstanceListResponse itemInstanceListResponse = new ItemInstanceListResponse()
             {

@@ -122,6 +122,8 @@ builder.Services.AddAuthentication()
                 };
             });
 
+builder.Services.AddHttpContextAccessor();
+
 var app = builder.Build();
 
 app.Use((context, next) => {

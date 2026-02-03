@@ -6,17 +6,19 @@ namespace AnyMMOWebServer.Services {
     public class MailMessageService {
         private GameDbContext dbContext;
         private ILogger logger;
+        private IHttpContextAccessor httpContextAccessor;
 
-        public MailMessageService(GameDbContext dbContext, ILogger logger) {
+        public MailMessageService(GameDbContext dbContext, ILogger logger, IHttpContextAccessor httpContextAccessor) {
             this.dbContext = dbContext;
             this.logger = logger;
+            this.httpContextAccessor = httpContextAccessor;
         }
 
         public bool AddMailMessage(MailMessage mailMessage) {
             dbContext.MailMessages.Add(mailMessage);
             dbContext.SaveChanges();
 
-            logger.LogInformation($"Added Mail Message with Id {mailMessage.Id}");
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] Added Mail Message with Id {mailMessage.Id}");
 
             return true;
         }
@@ -32,7 +34,7 @@ namespace AnyMMOWebServer.Services {
         }
 
         public bool SaveMailMessage(SaveMailMessageRequest saveMailMessageRequest) {
-            logger.LogInformation($"Saving Mail Message with Id {saveMailMessageRequest.Id}");
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] Saving Mail Message with Id {saveMailMessageRequest.Id}");
 
             var mailMessage = dbContext.MailMessages.First(u => u.Id == saveMailMessageRequest.Id);
             mailMessage.SaveData = saveMailMessageRequest.SaveData;
@@ -42,9 +44,13 @@ namespace AnyMMOWebServer.Services {
         }
 
         public bool DeleteMailMessage(DeleteMailMessageRequest deleteMailMessageRequest) {
-            logger.LogInformation($"Deleting Mail Message with Id {deleteMailMessageRequest.Id}");
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] Deleting Mail Message with Id {deleteMailMessageRequest.Id}");
 
-            var mailMessage = dbContext.MailMessages.First(u => u.Id == deleteMailMessageRequest.Id);
+            MailMessage? mailMessage = dbContext.MailMessages.FirstOrDefault(u => u.Id == deleteMailMessageRequest.Id);
+            if (mailMessage == null) {
+                return false;
+            }
+
             dbContext.MailMessages.Remove(mailMessage);
             dbContext.SaveChanges();
 
@@ -52,7 +58,7 @@ namespace AnyMMOWebServer.Services {
         }
 
         public MailMessageListResponse GetMailMessages(int playerCharacterId) {
-            logger.LogInformation($"Getting all mail messages for player character Id {playerCharacterId}");
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] Getting all mail messages for player character Id {playerCharacterId}");
 
             MailMessageListResponse mailMessageListResponse = new MailMessageListResponse() {
                 MailMessages = dbContext.MailMessages.Where(u => u.PlayerCharacterId == playerCharacterId).ToList()
@@ -60,6 +66,15 @@ namespace AnyMMOWebServer.Services {
 
             return mailMessageListResponse;
         }
+
+        public MailMessage? GetMailMessage(int messageId) {
+            logger.LogInformation($"[{DateTime.UtcNow:u}] [{(httpContextAccessor.HttpContext?.Connection.RemoteIpAddress == null ? "Unknown" : httpContextAccessor.HttpContext?.Connection.RemoteIpAddress.ToString())}] Getting mail message with Id {messageId}");
+
+            MailMessage? mailMessage = dbContext.MailMessages.FirstOrDefault(u => u.Id == messageId);
+
+            return mailMessage;
+        }
+
 
     }
 

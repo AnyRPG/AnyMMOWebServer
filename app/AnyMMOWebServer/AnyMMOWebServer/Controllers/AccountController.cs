@@ -21,13 +21,20 @@ namespace AnyMMOWebServer.Controllers
         private readonly ILogger<AccountController> logger;
         private readonly AnyMMOWebServer.Services.IAuthenticationService authenticationService;
         private readonly AnyMMOWebServerSettings anyMMOWebServerSettings;
+        private readonly IHttpContextAccessor _httpContextAccessor;
 
-        public AccountController(ILogger<AccountController> logger, GameDbContext dbContext, AnyMMOWebServerSettings anyMMOWebServerSettings, AnyMMOWebServer.Services.IAuthenticationService authenticationService)
+        public AccountController(
+            ILogger<AccountController> logger,
+            GameDbContext dbContext,
+            AnyMMOWebServerSettings anyMMOWebServerSettings,
+            AnyMMOWebServer.Services.IAuthenticationService authenticationService,
+            IHttpContextAccessor httpContextAccessor)
         {
             this.dbContext = dbContext;
             this.anyMMOWebServerSettings = anyMMOWebServerSettings;
-            userAccountService = new UserAccountService(dbContext, logger);
-            playerCharacterService = new PlayerCharacterService(dbContext, logger);
+            this._httpContextAccessor = httpContextAccessor;
+            userAccountService = new UserAccountService(dbContext, logger, httpContextAccessor);
+            playerCharacterService = new PlayerCharacterService(dbContext, logger, _httpContextAccessor);
             this.authenticationService = authenticationService;
             //authenticationService = new AnyMMOWebServer.Services.AuthenticationService(anyMMOWebServerSettings, dbContext, logger);
             this.logger = logger;
@@ -92,7 +99,7 @@ namespace AnyMMOWebServer.Controllers
             {
                 //logger.LogInformation("Logging in user");
                 AuthenticationRequest authenticationRequest = new AuthenticationRequest(collection);
-                var (success, content) = authenticationService.Login(authenticationRequest, HttpContext);
+                var (success, content) = authenticationService.Login(authenticationRequest);
                 if (!success)
                 {
                     TempData["ErrorMessage"] = content;
@@ -108,7 +115,7 @@ namespace AnyMMOWebServer.Controllers
         // GET: Account/logout
         public ActionResult Logout()
         {
-            authenticationService.Logout(HttpContext);
+            authenticationService.Logout();
             return RedirectToAction("Index", "Home");
         }
 
